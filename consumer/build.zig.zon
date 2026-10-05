@@ -1,0 +1,28 @@
+.{
+    .name = .harfbuzz_consumer,
+    .version = "0.1.0",
+    // The value Zig 0.16.0 printed for this package when the field was
+    // missing: "missing top-level 'fingerprint' field; suggested value:
+    // 0x86c4baa7e843488c".
+    .fingerprint = 0x86c4baa7e843488c,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        // A relative path, not a registry or archive URL. The consumer is the
+        // proof that `dep.module("harfbuzz")` works from outside the package
+        // that defines it; resolving that through the network would make the
+        // proof depend on a published state of the world instead.
+        //
+        // Only the library is named here. Its own FreeType dependency is the
+        // library's business and travels with it: the graph below links one
+        // FreeType and `src/main.zig` reaches FreeType's declarations through
+        // the `hb_ft_*` entry points the library's translated header already
+        // declares, so a consumer that only shapes from a font blob never has
+        // to depend on FreeType at all.
+        .harfbuzz = .{ .path = ".." },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

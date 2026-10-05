@@ -1,0 +1,91 @@
+# Upstream's own ignore conventions, kept verbatim. Nothing above this line is
+# ours, and nothing below it removes an upstream entry to make room for a
+# fork-owned one.
+#
+# The HarfBuzz 14.5.1 release as vendored here ships **no** `.gitignore` of its
+# own -- the top level of this tree is exactly the fourteen files
+# `UPSTREAM.sha256` records, verified over the whole vendored tree -- so there is
+# no upstream ignore file to preserve and none is being replaced. The entries in
+# the first block are upstream's *build systems'* outputs rather than upstream's
+# ignore file. They are listed so that an object or archive produced by a meson,
+# CMake or autotools build cannot be committed into a tree that is built with Zig
+# instead.
+#
+# Every pattern in that block is anchored with a leading `/`, and that is
+# load-bearing rather than tidy. Two upstream Makefiles ship inside the vendored
+# tree -- `src/wasm/sample/c/Makefile` and `src/wasm/graphite/Makefile` -- so a
+# bare `Makefile` line would ignore real upstream files, and an ignored file is a
+# file that stops being a candidate for a commit. Anchoring keeps the rule about
+# what a build *here* would drop in the root, and leaves the vendored tree alone.
+# Both files have digests in `UPSTREAM.sha256` and `tools/check-provenance.sh`
+# fails on any file under `src/`, `docs/` or `test/` that has no recorded digest,
+# so this is belt and braces rather than the only thing standing between a sloppy
+# ignore rule and a missing file.
+/*.o
+/*.obj
+/*.a
+/*.lib
+/*.so
+/*.so.*
+/*.dylib
+/*.dll
+/*.exp
+/*.pdb
+/*.exe
+/*.dSYM/
+/*.o.d
+/.deps/
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/build.ninja
+/.ninja_deps
+/.ninja_log
+/libtool
+/config.log
+/config.status
+/config.h
+/config.h.in
+/Makefile
+/libharfbuzz.pc
+/harfbuzz.pc
+/*.egg-info/
+__pycache__/
+*.pyc
+
+# zig build artefacts (fork addition).
+#
+# These are directories rather than single files because a normal `zig build`
+# creates them, and a normal `zig build` must not dirty the tree or leak into the
+# package published from it. None of them is named in `build.zig.zon` `.paths`,
+# so an ignored directory can never become part of the package.
+.zig-cache/
+zig-out/
+# Zig 0.16 fetches dependencies into a project-local directory. This package
+# declares one dependency and it is a relative path, so nothing is fetched; the
+# entry exists so that a future fetched dependency cannot commit its tree.
+zig-pkg/
+
+# The consumer package builds inside this repository and has its own cache and
+# output tree. It is ignored here so a build run from the repository root cannot
+# commit it by accident.
+consumer/.zig-cache/
+consumer/zig-out/
+consumer/zig-pkg/
+
+# Nix and devenv working-tree artefacts (fork addition).
+#
+# `nix build` writes `result` (and `result-1`, `result-2`, ... on a rebuild) into
+# the directory that asked for it, and `devenv` writes its resolved inputs and
+# its state beside the project. None of them is named in `build.zig.zon` `.paths`,
+# so an ignored path can never become part of the package either.
+# `devenv.lock` and `flake.lock` are deliberately *not* here: they are real
+# inputs, they belong to the driver, and ignoring them would be the wrong way to
+# keep a build out of a commit.
+result
+result-*
+.devenv/
+.devenv.flake.nix
+.devenv.flakes/
+devenv.local.nix
+.direnv/
