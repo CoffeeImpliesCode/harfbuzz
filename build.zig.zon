@@ -131,6 +131,5 @@
         "FORK-NOTES.md",
         "FORK-LICENSE.md",
         ".gitignore",
-        ".github/workflows/verify.yml",
     },
 }
