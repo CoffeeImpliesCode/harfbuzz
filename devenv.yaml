@@ -1,25 +1,5 @@
-# devenv input pin for the HarfBuzz SDK.
-#
-# The nixpkgs channel is pinned by revision so a shell is reproducible from the
-# lock. The matching flake input lives in flake.nix and is pinned independently,
-# because the two entry points resolve in different contexts.
-#
-# devenv.lock is not written here: the driver owns locks, and
-# `build.zig.zon .paths` deliberately does not name it either, so a fetched
-# package never hashes a missing entry.
-#
-# There is deliberately no `flake:` key on this input. `flake: false` makes
-# devenv read the input as a plain source tree, and a plain source tree has no
-# `lib`, so every devenv subcommand dies while bootstrapping: its
-# `bootstrapLib.nix` evaluates `lib = nixpkgs.lib` and the run ends with an
-# `attribute 'lib' missing` error. The revision pin is the whole contract.
-#
-# The revision is the one the rest of this workspace carries, read out of the
-# sibling forks rather than chosen here, and it is the same value flake.nix
-# names. The two are read by different resolvers; a reviewer comparing them
-# should be able to see that they agree without computing anything.
-#
 # SPDX-License-Identifier: MIT
+# Keep nixpkgs as a flake input. devenv bootstrap requires `nixpkgs.lib`.
 
 inputs:
   nixpkgs:

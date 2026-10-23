@@ -1,78 +1,23 @@
 // SPDX-License-Identifier: MIT
 .{
-    // The package id, the name a dependent writes in its dependency map, the one
-    // registered module (`dep.module("harfbuzz")`) and the artifact
-    // (`dep.artifact("harfbuzz")`) are all `harfbuzz`, and that is what makes
-    // Zig emit `libharfbuzz.a` - what a C consumer's `-lharfbuzz` needs.
     .name = .harfbuzz,
     .fingerprint = 0xbd60917ccfef0cdd,
-    // Upstream's own release, read out of `src/hb-version.h:44`
-    // (`HB_VERSION_MAJOR 14`), `:50` (`HB_VERSION_MINOR 5`) and `:56`
-    // (`HB_VERSION_MICRO 1`) - the three macros are on three separate lines and
-    // no one range holds all of them. `src/hb-version.h:63` is the same three
-    // numbers as a string, `HB_VERSION_STRING "14.5.1"`. `build.zig` compares
-    // this against the same three macros read out of that header and refuses to
-    // configure when the two disagree.
     .version = "14.5.1",
-    // `.fingerprint` is deliberately absent, for the reason the sibling
-    // `freetype/build.zig.zon` gives in full: Zig 0.16.0 requires the field and
-    // derives it from the package name alone, the compiler prints the correct
-    // value when it is missing ("missing top-level 'fingerprint' field;
-    // suggested value: 0x..."), and that derivation is not in the pinned
-    // `lib/std`. Writing a number nobody read out of anything would be a
-    // fabricated identifier in the one field whose purpose is to not be
-    // guessable. Obtaining it belongs to the driver; see FORK-NOTES.md.
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
-        // The sibling FreeType, as SIBLING SOURCE and never as a system
-        // library. `src/harfbuzz.cc:20` includes `src/hb-ft.cc` unconditionally,
-        // and that file needs FreeType's headers and FreeType's code, so the
-        // dependency is real and declared.
-        //
-        // A relative path, not a registry entry and not a fetch: the linkage
-        // this package documents is "the source tree next to this one", and a
-        // fetch would make the proof depend on a published state of the world
-        // instead of on this workspace. `-Dfreetype=<path>` selects a different
-        // FreeType *source* tree; there is no search path and no fallback, and
-        // `-Dfreetype=none` is refused at configure time with its reason.
         .freetype = .{ .path = "../freetype" },
     },
     .paths = .{
         "build.zig",
         "build.zig.zon",
-        // The cross-test harness profile for this package: settings only, no
-        // host path and no target subset. Nothing in build.zig reads it.
         "cross-test.profile.sh",
-        // zig/root.zig is the typed facade and zig/translate.h the aggregate
-        // translation header. Both travel because a dependent reaches them
-        // through `dep.module("harfbuzz")`.
         "zig",
-        // Upstream's HarfBuzz, unmodified: `src/` in full - the one translation
-        // unit `src/harfbuzz.cc` includes, every `.hh` it reaches, the ragel
-        // sources behind the Indic and Khmer shapers, the Unicode data tables
-        // and the upstream `check-*.py` scripts - `docs/`, and the top-level
-        // files that describe the release. The whole directories travel rather
-        // than a hand-picked file list so that the tree a dependent receives is
-        // upstream's tree.
-        //
-        // What was *not* taken is named and justified in UPSTREAM.md: `util/`
-        // (command-line programs, not a library), `perf/` (benchmarks),
-        // `test/subset/`, `test/fuzzing/`, `test/api/`, `test/vector/` and the
-        // two third-party corpus directories under `test/shape/data/`. None of
-        // those is in this package's compiled closure, and none of them is what
-        // the fixtures in `test/` below came from.
         "src",
         "docs",
         "COPYING",
         "AUTHORS",
         "NEWS",
         "THANKS",
-        // Upstream's own README, byte for byte, under the name that says so.
-        // It links `README.python.md` (line 113) and `README.mingw.md`
-        // (line 115), and neither is vendored: both are development notes about
-        // Python bindings and about cross-compiling from Linux or macOS, which
-        // this package does not build and does not document. Upstream's text
-        // and its links stay as upstream wrote them.
         "README.upstream.md",
         "BUILD.md",
         "CONFIG.md",
@@ -83,36 +28,15 @@
         "AVAR2-INSTANCING.md",
         ".clang-format",
         ".editorconfig",
-        // The upstream shaping-test corpus this package's known-answer fixtures
-        // are taken from, vendored whole: `test/shape/data/in-house` is the 215
-        // in-house fonts and the 86 `.tests` files that drive them, under the
-        // SIL Open Font License 1.1 whose text is `test/COPYING`. It travels
-        // whole rather than only the two files the tests cite because a
-        // partial corpus is not a corpus: `tools/check-provenance.sh` verifies
-        // the whole set's digests, and a reader can go and look at the other
-        // 84 expectation files rather than trusting this fork's transcription
-        // of two of them.
         "test/COPYING",
         "test/shape",
         "tests.zig",
         "smoke.zig",
-        // The separate consumer package: proof that the published module
-        // resolves from a package that did not write it, through a relative path
-        // rather than a fetch.
         "consumer/build.zig",
         "consumer/build.zig.zon",
         "consumer/src/main.zig",
-        // The provenance script that checks the recorded digests and the exact
-        // upstream file set.
         "tools",
-        // The runtime loader core the API role owns, and this library's generated
-        // dispatch and descriptor beside it. It is a dependency of the published
-        // module under `-Druntime`, so a dependent that takes this package must
-        // receive it.
         "runtime",
-        // Standalone Nix packaging and the canonical development shell. The lock
-        // files belong to the driver and are absent until they exist: naming a
-        // path that is not there would make `zig fetch` hash a missing entry.
         "package.nix",
         "flake.nix",
         "devenv.nix",
@@ -120,10 +44,6 @@
         ".envrc",
         "UPSTREAM.md",
         "UPSTREAM.sha256",
-        // This package's own front page, the fork's README. Upstream's is the
-        // `README.upstream.md` above; the two are named once each and never
-        // twice, because `.paths` is read by the package hashing step a
-        // *dependent* performs and a name listed twice is hashed twice.
         "README.md",
         "README.zig.md",
         "NOTICE.md",

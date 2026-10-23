@@ -1,60 +1,21 @@
-# Canonical development environment for the HarfBuzz SDK.
-#
-# This is the environment a contributor should be in. It installs tools and
-# nothing else: `packages` deliberately does not contain the SDK's own package,
-# because entering a shell must not require building a library to have it.
-#
-# The package itself is defined once, in ./package.nix, and shared with
-# flake.nix, so the two entry points cannot describe different builds. `outputs`
-# below name that same derivation lazily -- they are attributes, not builds, so
-# nothing is realised until `devenv build outputs.static` or
-# `devenv build outputs.shared` is actually run.
-#
-# devenv.lock is not written here: the driver owns locks, and `build.zig.zon`
-# `.paths` deliberately does not name it either.
-#
-# Three facts about the environment a task actually runs in are handled once, in
-# the `let` below, and every task uses them: devenv materialises a task as a
-# generated shell program that inherits the caller's working directory; `zig
-# build` defaults both its local cache and its install prefix to directories
-# inside the working tree; and `build.zig.zon` resolves the sibling FreeType as a
-# relative path, so a task that runs anywhere but this checkout has no FreeType
-# to compile against. None of that is visible from a task body, and all three
-# decide whether a task can find this checkout or must write into it.
-#
 # SPDX-License-Identifier: MIT
 
 { pkgs, ... }:
 
 let
-  # Kept as a value rather than inlined, so the version assertion below and the
-  # package list cannot disagree about which compiler is meant.
+  # Use the compiler pinned by build.zig.zon.
   zig = pkgs.zig_0_16;
 
   harfbuzz = linkage: pkgs.callPackage ./package.nix { inherit linkage; };
 
-  # The directory this module was evaluated against. `./.` is a path literal
-  # resolved relative to the file that names it, so this is this checkout and
-  # never the directory `devenv` was started from. `builtins.toString` converts
-  # that path instead of interpolating it into a string, so what the tasks below
-  # receive is this working tree: a plain `${./.}` would carry the path's store
-  # context and copy this whole SDK into the read-only store, and that copy is
-  # not the tree `build.zig` and `UPSTREAM.sha256` describe. No host path is
-  # written in this file -- the value is read out of the module's own location,
-  # so it tracks wherever this checkout is.
+  # Resolve this checkout from the Nix file without adding it to the store.
+  # Tasks use this path so relative dependencies resolve from the source tree.
   sdk_root = builtins.toString ./.;
 
-  # The sibling FreeType, as `build.zig.zon` resolves it: one directory up from
-  # this package. Named here so the precondition is one fact rather than three
-  # tasks each spelling it differently.
+  # Sibling FreeType source tree selected by build.zig.
   freetype_root = builtins.toString ../freetype;
 
-  # Where a task's build output goes. `zig build` keeps its local cache in
-  # `.zig-cache/` and installs into `zig-out/`, both relative to the working
-  # directory, and this checkout is a working tree on a volume mount that has to
-  # stay byte-identical. A directory the caller exported always wins and is never
-  # overwritten; otherwise it comes from `XDG_CACHE_HOME`, then `TMPDIR`, and this
-  # file names no location of its own.
+  # Keep Zig caches outside the source tree and respect caller-provided paths.
   zig_caches = ''
     if [ -z "''${ZIG_LOCAL_CACHE_DIR:-}" ]; then
       if [ -n "''${XDG_CACHE_HOME:-}" ]; then
@@ -78,9 +39,7 @@ let
     fi
   '';
 
-  # The same rule with the one extra requirement a task has: it must be able to
-  # name that directory. An environment with nowhere outside the checkout to
-  # write stops here, with the reason, instead of filling the tree.
+  # Require an external local cache before build tasks run.
   require_external_output = ''
     if [ -z "''${ZIG_LOCAL_CACHE_DIR:-}" ]; then
       echo "harfbuzz devenv: ZIG_LOCAL_CACHE_DIR, XDG_CACHE_HOME and TMPDIR are all" >&2
@@ -90,11 +49,7 @@ let
     fi
   '';
 
-  # The sibling FreeType is a hard dependency of every build here: `src/hb-ft.cc`
-  # is inside the single translation unit, and `build.zig` compiles it against
-  # the sibling's source include root. A task that cannot see the sibling would
-  # fail with a compile error about `<ft2build.h>`, which says nothing about the
-  # cause. This check says the cause.
+  # FreeType is required. Report a missing source tree before compiling.
   require_freetype = ''
     if [ ! -f "${freetype_root}/build.zig.zon" ]; then
       echo "harfbuzz devenv: the sibling FreeType source tree is not at" >&2
@@ -106,11 +61,7 @@ let
     fi
   '';
 
-  # What every task below starts with. devenv materialises a task as a generated
-  # shell program that inherits the caller's working directory, so a task entered
-  # from a scratch project directory would otherwise run its body where there is
-  # no `build.zig` and no `UPSTREAM.sha256`. A per-task `cwd` would not reach
-  # that generated program.
+  # Run each build task from this checkout root.
   in_sdk = ''
     ${zig_caches}
     ${require_external_output}
@@ -118,27 +69,18 @@ let
     cd "${sdk_root}" || exit 1
   '';
 
-  # `LC_ALL=C` is exported by every task, not set once in `packages`: it decides
-  # an answer. Upstream's own shaping-test runner sets it
-  # (`test/shape/run-tests.py:19`) because `hb_language_get_default()` reads the
-  # locale, and the recorded expectations in `test/shape/data/in-house/tests/`
-  # were taken under "C". Under another locale the OpenType language system a
-  # shaper selects can differ, and the oracle comparison would fail for a reason
-  # that has nothing to do with this package.
+  # Shaping tests require `LC_ALL=C` because `hb_language_get_default()` reads
+  # the locale (`test/shape/run-tests.py:19`).
   locale_c = ''
     export LC_ALL=C
   '';
 
-  # The flags every native build here shares: this workspace's eight jobs,
-  # fixed, then the printed step list and a local cache outside the checkout.
-  # `"''$@"` stays after them, so whatever a caller appended is still passed on
-  # and still comes later.
+  # Keep caller flags after the build defaults.
   native_flags = ''
     -j8 --summary all --cache-dir "$ZIG_LOCAL_CACHE_DIR/native" "''$@"
   '';
 
-  # The consumer package is a second build graph with its own manifest, so it
-  # gets its own cache directory rather than sharing one with the library.
+  # Keep the consumer graph in a separate cache directory.
   consumer_flags = ''
     -j8 --summary all --cache-dir "$ZIG_LOCAL_CACHE_DIR/consumer" "''$@"
   '';
@@ -157,28 +99,19 @@ in
     }
   ];
 
-  # The shell hook exports the same two directories the tasks use, by the same
-  # rule, so an ordinary `devenv shell` session also leaves this checkout alone.
-  # A value the caller exported is kept exactly as it is, and with nothing to
-  # choose from the hook chooses nothing: only a task, which has to name the
-  # directory, refuses to run.
+  # Interactive shells use the same cache defaults as task runs.
   enterShell = ''
     ${zig_caches}
     ${locale_c}
   '';
 
-  # Lazy on purpose: naming a derivation realises nothing, and entering the shell
-  # does not build either variant. `devenv build outputs.<name>` is the real
-  # packaging route.
+  # Output derivations stay lazy until requested.
   outputs.static = harfbuzz "static";
   outputs.shared = harfbuzz "dynamic";
   outputs.default = harfbuzz "static";
 
   tasks = {
-    # Delivery output goes outside the checkout. The default step installs, and
-    # `zig-out/` is a directory in the working tree, so the install prefix is
-    # named here; the pkg-config file and the rpath the build normalises are
-    # prefix-relative, so the installed tree is the same shape wherever it lands.
+    # Install outside the checkout to avoid writing into the source tree.
     "sdk:build" = {
       description = ''
         Compile the single C++ translation unit `src/harfbuzz.cc` against the
@@ -206,8 +139,6 @@ in
       '';
     };
 
-    # These run or compile; none of them installs, so each needs only the
-    # external cache directory.
     "sdk:test" = {
       description = ''
         Run the behavioural tests in Debug. They compare HarfBuzz's output with
@@ -255,12 +186,6 @@ in
       '';
     };
 
-    # The dependent package in `consumer/`, built and run as itself. It reaches
-    # the library through the relative path dependency in its own manifest, so
-    # this is the proof that `dep.module("harfbuzz")` works from outside this
-    # package -- and, through it, that the sibling FreeType is linked and
-    # answering: the program reads an `FT_Face` back through FreeType's own face
-    # loader and shapes the same line twice.
     "sdk:consumer" = {
       description = "Build and run the separate consumer package against this SDK";
       exec = ''
@@ -271,11 +196,6 @@ in
       '';
     };
 
-    # The checker runs against this checkout's own bytes and file set, which is
-    # what `UPSTREAM.sha256` describes, so it is entered here rather than in the
-    # directory the task happened to start in. It needs no compiler, no Zig cache
-    # and no build output, which is why it does not call `in_sdk` for the cache
-    # part and only changes directory.
     "sdk:provenance" = {
       description = ''
         Check the 932 recorded upstream digests, the exact vendored file set, the
@@ -289,10 +209,7 @@ in
       '';
     };
 
-    # These two are the only bodies that do not enter this checkout, and that is
-    # deliberate. They run a nested `devenv build`, which reads the project the
-    # caller entered and whose delivery output is a store path, never a directory
-    # in this tree.
+    # Nix outputs use store paths, not checkout directories.
     "sdk:package:static" = {
       description = ''
         Build the static Nix variant through devenv's own lazy output. No lock is
