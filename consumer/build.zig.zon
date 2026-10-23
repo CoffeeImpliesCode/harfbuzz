@@ -2,8 +2,8 @@
     .name = .harfbuzz_consumer,
     .version = "0.1.0",
     // The value Zig 0.16.0 printed for this package when the field was
-    // missing: "missing top-level 'fingerprint' field; suggested value:
-    // 0x86c4baa7e843488c".
+    // missing (observed with Zig 0.16; not rechecked on 0.17): "missing
+    // top-level 'fingerprint' field; suggested value: 0x86c4baa7e843488c".
     .fingerprint = 0x86c4baa7e843488c,
     .minimum_zig_version = "0.17.0",
     .dependencies = .{

@@ -97,8 +97,7 @@ pub fn Config(comptime dispatch: type) type {
                     "than the one this SDK's headers describe";
             }
             // A zero-argument buffer checks that the provider can allocate and destroy a basic object.
-            const buffer = dst.hb_buffer_create() orelse return
-                "hb_buffer_create returned null, so this provider's allocator " ++
+            const buffer = dst.hb_buffer_create() orelse return "hb_buffer_create returned null, so this provider's allocator " ++
                 "could not satisfy an empty buffer";
             dst.hb_buffer_destroy(buffer);
             return null;
