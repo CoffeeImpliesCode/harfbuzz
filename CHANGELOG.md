@@ -1,5 +1,10 @@
 # Changelog
 
+- Port to Zig 0.17.0.
+- The consumer step forwards Zig cache and library overrides through environment variables.
+- The consumer step runs only native executables; other targets are installed without running.
+- The nested consumer build keeps its own install prefix instead of forwarding a custom parent prefix.
+- The nested consumer build no longer forwards an optional libc runtime directory.
 - `NOTICE.md` now lists upstream copyright holders verbatim and records licence scopes by path.
 - `riscv64-linux-gnu` translation defines the target floating-point ABI macro required by libc headers.
 - `wasm32-wasi` remains unsupported because the required FreeType `setjmp` path needs exception handling.

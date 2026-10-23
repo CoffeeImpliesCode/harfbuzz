@@ -1,4 +1,4 @@
-# HarfBuzz 14.5.1 for Zig 0.16
+# HarfBuzz 14.5.1 for Zig 0.17.0
 
 This package wraps upstream HarfBuzz 14.5.1, an OpenType text-shaping library.
 It exposes a Zig facade and native C library built from vendored sources.

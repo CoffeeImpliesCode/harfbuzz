@@ -3,7 +3,7 @@
     .name = .harfbuzz,
     .fingerprint = 0xbd60917ccfef0cdd,
     .version = "14.5.1",
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .freetype = .{ .path = "../freetype" },
     },

@@ -95,7 +95,7 @@ const FreeType = struct {
     fn dep(
         b: *std.Build,
         target: std.Build.ResolvedTarget,
-        optimize: std.builtin.OptimizeMode,
+        optimize: std.lang.Optimize,
     ) *std.Build.Dependency {
         return b.dependency(freetype_name, .{ .target = target, .optimize = optimize });
     }
@@ -181,8 +181,8 @@ fn artifactName(b: *std.Build, target: std.Build.ResolvedTarget, public: bool) [
 fn add_c_library(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    requested: std.builtin.LinkMode,
+    optimize: std.lang.Optimize,
+    requested: std.lang.LinkMode,
     platform: Platform,
     freetype: FreeType,
     name: []const u8,
@@ -262,7 +262,7 @@ fn targetHasDynamicLinker(target: std.Build.ResolvedTarget) bool {
     return target.result.os.tag == .windows or std.Target.DynamicLinker.kind(target.result.os.tag) != .none;
 }
 
-fn deliveredLinkage(target: std.Build.ResolvedTarget, requested: std.builtin.LinkMode) std.builtin.LinkMode {
+fn deliveredLinkage(target: std.Build.ResolvedTarget, requested: std.lang.LinkMode) std.lang.LinkMode {
     if (requested == .dynamic and !targetHasDynamicLinker(target)) {
         std.debug.panic(
             "harfbuzz: -Dlinkage=dynamic was asked for {s}, which has no " ++
@@ -293,9 +293,9 @@ fn translateCRiscvFloatAbi(target: std.Build.ResolvedTarget) ?[2][]const u8 {
 fn addGraph(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
+    optimize: std.lang.Optimize,
     library: Library,
-    linkage: std.builtin.LinkMode,
+    linkage: std.lang.LinkMode,
     runtime_loaded: bool,
     freetype: FreeType,
     public: bool,
@@ -366,9 +366,9 @@ fn addGraph(
 fn add_target_check(
     b: *std.Build,
     query: std.Target.Query,
-    optimize: std.builtin.OptimizeMode,
+    optimize: std.lang.Optimize,
     library: Library,
-    linkage: std.builtin.LinkMode,
+    linkage: std.lang.LinkMode,
     runtime_loaded: bool,
     freetype: FreeType,
     step: *std.Build.Step,
@@ -405,9 +405,9 @@ fn add_target_check(
 fn runConsumer(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
+    optimize: std.lang.Optimize,
     library: Library,
-    linkage: std.builtin.LinkMode,
+    linkage: std.lang.LinkMode,
     runtime_loaded: bool,
     freetype_path: []const u8,
 ) *std.Build.Step.Run {
@@ -419,7 +419,7 @@ fn runConsumer(
     const run = b.addSystemCommand(&.{ b.graph.zig_exe, "build" });
     run.setName("consumer package");
     run.setCwd(b.path("consumer"));
-    run.addArg(if (hostCanExecute(b, target)) "run" else "install");
+    run.addArg(if (hostCanExecute(b, target, linkage)) "run" else "install");
     run.addArg(b.fmt("-Dtarget={s}", .{triple}));
     run.addArg(b.fmt("-Dcpu={s}", .{cpu}));
     run.addArg(b.fmt("-Doptimize={s}", .{@tagName(optimize)}));
@@ -431,59 +431,48 @@ fn runConsumer(
         b.fmt("-fsys={s}", .{lib_name})
     else
         b.fmt("-fno-sys={s}", .{lib_name}));
-    if (b.enable_darling) run.addArg("-fdarling");
-    if (b.enable_qemu) run.addArg("-fqemu");
-    if (b.enable_rosetta) run.addArg("-frosetta");
-    if (b.enable_wasmtime) run.addArg("-fwasmtime");
-    if (b.enable_wine) run.addArg("-fwine");
-    if (b.libc_runtimes_dir) |runtimes| run.addArgs(&.{ "--libc-runtimes", runtimes });
+    run.addThirdPartyEnabledArgDarling(.{ .enabled = "-fdarling" });
+    run.addThirdPartyEnabledArgQemu(.{ .enabled = "-fqemu" });
+    run.addThirdPartyEnabledArgRosetta(.{ .enabled = "-frosetta" });
+    run.addThirdPartyEnabledArgWasmtime(.{ .enabled = "-fwasmtime" });
+    run.addThirdPartyEnabledArgWine(.{ .enabled = "-fwine" });
     run.addArg("-j8");
     run.addArg("--summary");
     run.addArg("all");
-    if (b.cache_root.path) |cache| {
-        run.addArg("--cache-dir");
-        run.addArg(b.fmt("{s}/consumer", .{cache}));
+    run.addArg("--cache-dir");
+    run.addDirectoryArg2(std.Build.LazyPath.cache_root, .{
+        .suffix = std.Io.Dir.path.sep_str ++ "consumer",
+        .make_absolute = true,
+    });
+    inline for (.{ "ZIG_GLOBAL_CACHE_DIR", "ZIG_LIB_DIR" }) |key| {
+        if (b.graph.environ_map.get(key)) |value| run.setEnvironmentVariable(key, value);
     }
-    if (b.graph.global_cache_root.path) |global_cache| {
-        run.addArg("--global-cache-dir");
-        run.addArg(global_cache);
-    }
-    const default_prefix = b.build_root.join(b.allocator, &.{"zig-out"}) catch @panic("OOM");
-    if (!std.mem.eql(u8, b.install_prefix, default_prefix)) {
-        const prefix = if (std.fs.path.isAbsolute(b.install_prefix))
-            b.install_prefix
-        else
-            b.pathJoin(&.{ b.graph.cache.cwd, b.install_prefix });
-        run.addArg("--prefix");
-        run.addArg(prefix);
-    }
-    if (b.args) |args| {
-        run.addArg("--");
-        run.addArgs(args);
-    }
+    run.addArg("--");
+    run.addPassthruArgs();
     run.has_side_effects = true;
     return run;
 }
 
-fn hostCanExecute(b: *std.Build, target: std.Build.ResolvedTarget) bool {
+fn hostCanExecute(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    linkage: std.lang.LinkMode,
+) bool {
     const host = &b.graph.host.result;
     const candidate = &target.result;
     const options: std.zig.system.GetExternalExecutorOptions = .{
-        .allow_darling = b.enable_darling,
-        .allow_qemu = b.enable_qemu,
-        .allow_wasmtime = b.enable_wasmtime,
-        .allow_wine = b.enable_wine,
-        .qemu_fixes_dl = candidate.isGnuLibC() and b.libc_runtimes_dir != null,
+        .host_cpu_arch = host.cpu.arch,
+        .host_os_tag = host.os.tag,
+        .link_mode = linkage,
         .link_libc = true,
     };
-    return switch (std.zig.system.getExternalExecutor(b.graph.io, host, candidate, options)) {
-        .native, .rosetta, .wine, .wasmtime, .darling => true,
-        .qemu => !(candidate.isGnuLibC() and b.libc_runtimes_dir == null),
-        .bad_dl, .bad_os_or_cpu => false,
+    return switch (std.zig.system.getExternalExecutor(b.graph.io, candidate, options)) {
+        .native => true,
+        .rosetta, .qemu, .wine, .wasmtime, .darling, .bad_dl, .bad_os_or_cpu => false,
     };
 }
 
-fn add_pkg_config(b: *std.Build, linkage: std.builtin.LinkMode) void {
+fn add_pkg_config(b: *std.Build, linkage: std.lang.LinkMode) void {
     const files = b.addWriteFiles();
     const install_pc = b.addInstallFileWithDir(
         files.add("harfbuzz.pc", b.fmt(
@@ -549,11 +538,11 @@ pub fn build(b: *std.Build) void {
     const library: Library = if (use_system) .system else .bundled;
 
     const linkage_option = b.option(
-        std.builtin.LinkMode,
+        std.lang.LinkMode,
         "linkage",
         "How the library is delivered. static gives libharfbuzz.a; dynamic gives a real shared object.",
     );
-    const linkage: std.builtin.LinkMode = linkage_option orelse
+    const linkage: std.lang.LinkMode = linkage_option orelse
         (if (library == .system) .dynamic else .static);
 
     const runtime_loaded = b.option(
@@ -610,7 +599,7 @@ pub fn build(b: *std.Build) void {
 
     const run_example = b.addRunArtifact(example);
     run_example.has_side_effects = true;
-    if (b.args) |args| run_example.addArgs(args);
+    run_example.addPassthruArgs();
     b.step("smoke", "Run the deterministic example program").dependOn(&run_example.step);
 
     const test_mod = b.createModule(.{

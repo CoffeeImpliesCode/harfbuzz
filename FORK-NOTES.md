@@ -17,6 +17,9 @@ No upstream source files are patched. The fork adds its Zig facade under `zig/` 
 - RISC-V glibc translation receives the float-ABI macro derived from the target triple, matching the C compiler's ABI selection.
 - Runtime mode generates dispatch from the target's translated headers. System mode links an installed HarfBuzz and translates its headers.
 - Dynamic delivery uses upstream's SONAME, `libharfbuzz.so.0`. The build creates the relocatable `harfbuzz.pc` file and installs licence and provenance records.
+- Zig 0.17 hides emulator opt-ins during configuration; the nested consumer step runs only native executables.
+- Zig 0.17 exposes install-prefix and libc-runtime paths as lazy paths; the nested consumer build keeps its own prefix and omits optional libc-runtime forwarding.
+- Zig 0.17 removes the nested build's global-cache option; the consumer step forwards `ZIG_GLOBAL_CACHE_DIR` and `ZIG_LIB_DIR` through its environment.
 
 ## Known platform boundaries
 

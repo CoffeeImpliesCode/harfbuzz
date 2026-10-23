@@ -5,7 +5,7 @@
     // missing: "missing top-level 'fingerprint' field; suggested value:
     // 0x86c4baa7e843488c".
     .fingerprint = 0x86c4baa7e843488c,
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{
         // A relative path, not a registry or archive URL. The consumer is the
         // proof that `dep.module("harfbuzz")` works from outside the package
