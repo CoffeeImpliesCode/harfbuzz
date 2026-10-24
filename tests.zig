@@ -222,7 +222,7 @@ fn recordFaceDestroy(data: ?*anyopaque) callconv(.c) void {
 }
 
 /// Owns an `FT_Library` and `FT_Face` over the embedded font fixture.
-/// Uses the sibling module whose `FT_FaceRec` type appears in `FtFont`'s API.
+/// Uses the dependency module whose `FT_FaceRec` type appears in `FtFont`'s API.
 const FtFixture = struct {
     library: hb.freetype.c.FT_Library,
     face: hb.freetype.c.FT_Face,

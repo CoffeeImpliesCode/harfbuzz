@@ -54,8 +54,8 @@ MIT
 
 ## Other material and limits
 
-HarfBuzz depends on sibling `../freetype` for `hb_ft_font_*`. Its source, licence and records are in that package, outside this grant and this inventory; consumers receive both packages.
+HarfBuzz uses the `freetype` package dependency declared in `build.zig.zon` for `hb_ft_font_*`. Its source, licence and records are in that package, outside this grant and this inventory; consumers receive both packages.
 
 Under `-Druntime`, the dispatch and patched translation are generated in the build cache from `zig/translate.h` and upstream headers. They are not fetched, installed or shipped.
 
-This grant excludes upstream HarfBuzz, `src/ms-use/`, `test/shape/data/in-house/` and sibling FreeType. It does not discharge HarfBuzz's attribution obligations. Consumers shipping the static or shared HarfBuzz 14.5.1 library must retain notices in `COPYING`; `NOTICE.md` records their installed path, `share/licenses/harfbuzz/`, after `zig build`.
+This grant excludes upstream HarfBuzz, `src/ms-use/`, `test/shape/data/in-house/` and the FreeType package dependency. It does not discharge HarfBuzz's attribution obligations. Consumers shipping the static or shared HarfBuzz 14.5.1 library must retain notices in `COPYING`; `NOTICE.md` records their installed path, `share/licenses/harfbuzz/`, after `zig build`.

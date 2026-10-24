@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // See ../FORK-LICENSE.md for what that identifier covers.
 //
-//! Consumer build graph for the HarfBuzz module and sibling FreeType.
+//! Consumer build graph for HarfBuzz and its FreeType package dependency.
 //! The run step forwards linkage/runtime options to exercise the selected route.
 
 const std = @import("std");
@@ -26,12 +26,12 @@ pub fn build(b: *std.Build) void {
             "which is src/main.zig's business and not this file's.",
     ) orelse false;
 
-    // Forward the FreeType source option; the dependency resolves it relative to its package root.
+    // The dependency accepts absolute paths or paths relative to its package root.
     const freetype = b.option(
         []const u8,
         "freetype",
-        "The FreeType source tree the library compiles against. Forwarded to " ++
-            "the dependency, which resolves it relative to its own package root.",
+        "Override the freetype package dependency's source tree. Absolute " ++
+            "or relative to the HarfBuzz package root.",
     );
 
     const harfbuzz_options = .{

@@ -41,8 +41,8 @@ pub const Sync = struct {
 /// Header version required from a provider.
 const expected_version: [3]c_uint = .{ 14, 5, 1 };
 
-/// Load-time report for this package's build with sibling FreeType.
-const config_name = "HAVE_FREETYPE from the sibling ../freetype source tree; HB_NO_FREETYPE not defined";
+/// Load-time report for this package's build with FreeType.
+const config_name = "HAVE_FREETYPE from the freetype package dependency or source override; HB_NO_FREETYPE not defined";
 
 /// Builds the loader descriptor for the generated dispatch type.
 /// Passing the type avoids a dependency on generated code.

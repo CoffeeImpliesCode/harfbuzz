@@ -2,7 +2,7 @@
 // See FORK-LICENSE.md for what that identifier covers.
 //
 //! Generates the runtime-loaded `c` module from the selected translation; do not link the native archive.
-//! `libc_noise` keeps libc declarations direct; the remaining symbols use the provider.
+//! FreeType and `libc_noise` declarations stay linked; HarfBuzz symbols use the provider.
 
 const std = @import("std");
 
@@ -317,7 +317,7 @@ const libc_noise =
 /// No HarfBuzz API symbols are optional for this provider.
 const provider_optional = "";
 
-/// No declarations are excluded from provider routing beyond `libc_noise`.
+/// No HarfBuzz declarations are excluded from provider routing.
 const provider_excluded = "";
 
 /// Creates the linked-build loader core so this SDK's `LoadSource` and `LoadError` types are shared.

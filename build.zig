@@ -17,9 +17,6 @@ const example_source = "smoke.zig";
 /// `src/harfbuzz.cc:1` includes files relative to `src/`; keep it on the include path.
 const source_dir = "src";
 
-/// Default FreeType source tree, relative to this package.
-const default_freetype_path = "../freetype";
-
 /// Version from upstream macros in `src/hb-version.h:44,50,56`.
 const upstream_version: std.SemanticVersion = .{ .major = 14, .minor = 5, .patch = 1 };
 
@@ -53,6 +50,7 @@ const public_headers = [_][]const u8{
     "src/hb-ot-shape.h",
     "src/hb-ot-var.h",
     "src/hb-paint.h",
+    "src/hb-script-list.h",
     "src/hb-set.h",
     "src/hb-shape-plan.h",
     "src/hb-shape.h",
@@ -86,40 +84,60 @@ const Library = enum {
     system,
 };
 
-/// FreeType source dependency resolved for each target graph.
+/// FreeType source tree, built with the manifest dependency's build recipe.
 const FreeType = struct {
-    /// A FreeType *source* tree, relative to this package's root.
-    path: []const u8,
+    path: std.Build.LazyPath,
+    /// Absolute or package-root-relative source override.
+    override: ?[]const u8,
 
-    /// The sibling package, for the target this graph builds.
     fn dep(
+        freetype: FreeType,
         b: *std.Build,
         target: std.Build.ResolvedTarget,
         optimize: std.lang.Optimize,
     ) *std.Build.Dependency {
-        return b.dependency(freetype_name, .{ .target = target, .optimize = optimize });
+        const override = freetype.override orelse
+            return b.dependency(freetype_name, .{ .target = target, .optimize = optimize });
+
+        const pkg_hash = for (b.available_deps) |entry| {
+            if (std.mem.eql(u8, entry[0], freetype_name)) break entry[1];
+        } else unreachable;
+        const package = std.Build.package_map.get(pkg_hash).?;
+        const root = if (std.fs.path.isAbsolute(override))
+            std.Build.Cache.Path.initCwd(override)
+        else
+            b.root.join(b.allocator, override) catch @panic("OOM");
+        const child = std.Build.create(b.graph, root, package.deps) catch @panic("OOM");
+        child.pkg_hash = pkg_hash;
+        child.dep_prefix = b.fmt("{s}freetype-override.", .{b.dep_prefix});
+        child.user_input_options.put(b.allocator, "target", .{
+            .scalar = target.query.zigTriple(b.allocator) catch @panic("OOM"),
+        }) catch @panic("OOM");
+        child.user_input_options.put(b.allocator, "cpu", .{
+            .scalar = target.query.serializeCpuAlloc(b.allocator) catch @panic("OOM"),
+        }) catch @panic("OOM");
+        child.user_input_options.put(b.allocator, "optimize", .{
+            .scalar = @tagName(optimize),
+        }) catch @panic("OOM");
+        @import("freetype").build(child);
+        const dependency = b.graph.create(std.Build.Dependency);
+        dependency.* = .{ .builder = child };
+        return dependency;
     }
 
-    /// The sibling's *source* include root, lazily.
     fn include(freetype: FreeType, b: *std.Build) std.Build.LazyPath {
-        return b.path(freetype.path).path(b, "include");
+        return freetype.path.path(b, "include");
     }
 };
 
-/// The six cross targets this package compiles for.
+/// WASI is excluded: required FreeType headers need WebAssembly exception handling.
 const check_targets = [_]std.Target.Query{
     .{ .cpu_arch = .x86_64, .os_tag = .linux, .abi = .gnu },
     .{ .cpu_arch = .aarch64, .os_tag = .linux, .abi = .gnu },
     .{ .cpu_arch = .aarch64, .os_tag = .macos, .abi = .none },
     .{ .cpu_arch = .x86_64, .os_tag = .windows, .abi = .gnu },
     .{ .cpu_arch = .riscv64, .os_tag = .linux, .abi = .gnu },
-    .{ .cpu_arch = .wasm32, .os_tag = .wasi },
 };
-
-/// FreeType includes `<setjmp.h>` (`include/freetype/config/ftstdlib.h:166`).
-/// wasi-libc rejects it without `__wasm_exception_handling__` (`libc/include/wasm-wasi-musl/setjmp.h:13`).
-/// Keep WASI in `check_targets`.
-const refused_check_targets = [_]std.Target.Query{};
 
 const Graph = struct {
     c_lib: ?*std.Build.Step.Compile,
@@ -186,7 +204,7 @@ fn artifactName(b: *std.Build, target: std.Build.ResolvedTarget, public: bool) [
     return b.fmt("{s}-{s}", .{ lib_name, triple });
 }
 
-/// Compile HarfBuzz against a sibling FreeType source tree.
+/// Compile HarfBuzz against the selected FreeType package source tree.
 fn add_c_library(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
@@ -194,6 +212,7 @@ fn add_c_library(
     requested: std.lang.LinkMode,
     platform: Platform,
     freetype: FreeType,
+    freetype_dep: *std.Build.Dependency,
     name: []const u8,
 ) *std.Build.Step.Compile {
     const linkage = deliveredLinkage(target, requested);
@@ -230,7 +249,7 @@ fn add_c_library(
     c_mod.addIncludePath(freetype.include(b));
     c_mod.addCMacro("HAVE_FREETYPE", "1");
     // `HAVE_FT_GET_TRANSFORM` gates `FT_Get_Transform` (`src/hb-ft.cc:186`).
-    // The sibling header declares it since 2.11 (`../freetype/include/freetype/freetype.h:3711-3712`).
+    // FreeType declares it since 2.11 (`include/freetype/freetype.h:3711-3712`).
     c_mod.addCMacro("HAVE_FT_GET_TRANSFORM", "1");
 
     c_mod.addCSourceFile(.{
@@ -243,7 +262,7 @@ fn add_c_library(
 
     // Resolve FreeType for this target to match its ABI.
 
-    c_mod.linkLibrary(FreeType.dep(b, target, optimize).artifact(freetype_name));
+    c_mod.linkLibrary(freetype_dep.artifact(freetype_name));
     if (linkage == .dynamic) setVersionScript(b, c_lib, target);
 
     for (public_headers) |header| {
@@ -310,9 +329,10 @@ fn addGraph(
     public: bool,
 ) Graph {
     const platform = Platform.forTarget(target);
+    const freetype_dep = freetype.dep(b, target, optimize);
 
     const c_lib: ?*std.Build.Step.Compile = if (library == .bundled)
-        add_c_library(b, target, optimize, linkage, platform, freetype, artifactName(b, target, public))
+        add_c_library(b, target, optimize, linkage, platform, freetype, freetype_dep, artifactName(b, target, public))
     else
         null;
 
@@ -358,16 +378,16 @@ fn addGraph(
         });
 
     if (runtime_loaded) {
-        module.addImport("c", graph.createModule(b, translate, target, optimize));
+        const dispatch = graph.createModule(b, translate, target, optimize);
+        dispatch.linkLibrary(freetype_dep.artifact(freetype_name));
+        module.addImport("c", dispatch);
     } else {
         module.addImport("c", translate.createModule());
         module.addImport("rt", graph.createCoreModule(b, target, optimize));
         if (c_lib) |lib| module.linkLibrary(lib);
     }
-    if (library == .bundled) {
-        module.addIncludePath(b.path(source_dir));
-        module.addImport(freetype_name, FreeType.dep(b, target, optimize).module(freetype_name));
-    }
+    if (library == .bundled) module.addIncludePath(b.path(source_dir));
+    module.addImport(freetype_name, freetype_dep.module(freetype_name));
 
     return .{ .c_lib = c_lib, .module = module, .platform = platform };
 }
@@ -418,7 +438,7 @@ fn runConsumer(
     library: Library,
     linkage: std.lang.LinkMode,
     runtime_loaded: bool,
-    freetype_path: []const u8,
+    freetype_path: std.Build.LazyPath,
 ) *std.Build.Step.Run {
     const triple = target.query.zigTriple(b.allocator) catch @panic("OOM");
     defer b.allocator.free(triple);
@@ -435,7 +455,7 @@ fn runConsumer(
     run.addArg(b.fmt("-Dlinkage={s}", .{@tagName(linkage)}));
     run.addArg(b.fmt("-Druntime={s}", .{if (runtime_loaded) "true" else "false"}));
     // Forward the selected FreeType source path to the consumer build.
-    run.addArg(b.fmt("-Dfreetype={s}", .{freetype_path}));
+    run.addDirectoryArg2(freetype_path, .{ .prefix = "-Dfreetype=", .make_absolute = true });
     run.addArg(if (library == .system)
         b.fmt("-fsys={s}", .{lib_name})
     else
@@ -453,7 +473,12 @@ fn runConsumer(
         .suffix = std.Io.Dir.path.sep_str ++ "consumer",
         .make_absolute = true,
     });
-    inline for (.{ "ZIG_GLOBAL_CACHE_DIR", "ZIG_LIB_DIR" }) |key| {
+    inline for (.{
+        "ZIG_GLOBAL_CACHE_DIR",
+        "ZIG_LIB_DIR",
+        "HARFBUZZ_PROVIDER",
+        "HARFBUZZ_PROVIDER_SYSTEM",
+    }) |key| {
         if (b.graph.environ_map.get(key)) |value| run.setEnvironmentVariable(key, value);
     }
     run.addArg("--");
@@ -528,12 +553,6 @@ fn install_licence_records(b: *std.Build) void {
     }
 }
 
-fn checkMatrixPartition(_: *std.Build) void {
-    if (refused_check_targets.len != 0) {
-        @panic("build.zig: refused_check_targets is not empty and this build has no refusal to record; see the module doc");
-    }
-}
-
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -564,7 +583,7 @@ pub fn build(b: *std.Build) void {
     const freetype_option = b.option(
         []const u8,
         "freetype",
-        "The FreeType source tree that src/hb-ft.cc compiles against. The word `none` is refused at configure time with the reason; there is no HB_NO_FREETYPE configuration here. Defaults to the sibling ../freetype package.",
+        "Override the freetype package dependency's source tree for headers, archive and Zig module. Absolute or relative to the HarfBuzz package root; none is refused.",
     );
     if (freetype_option) |value| {
         if (std.mem.eql(u8, value, "none")) {
@@ -579,14 +598,20 @@ pub fn build(b: *std.Build) void {
             @panic("harfbuzz: refusing a configuration this package has no honest facade for");
         }
     }
-    // Resolve relative paths against this package root.
-    const freetype: FreeType = .{ .path = freetype_option orelse default_freetype_path };
+    const freetype: FreeType = .{
+        .path = if (freetype_option) |path|
+            if (std.fs.path.isAbsolute(path))
+                .{ .cwd_relative = path }
+            else
+                b.path(path)
+        else
+            b.dependency(freetype_name, .{ .target = target, .optimize = optimize }).path(""),
+        .override = freetype_option,
+    };
 
     if (manifest_version.order(upstream_version) != .eq) {
         @panic("build.zig.zon .version no longer matches the version read out of src/hb-version.h; see UPSTREAM.md");
     }
-
-    checkMatrixPartition(b);
 
     const published = addGraph(b, target, optimize, library, linkage, runtime_loaded, freetype, true);
 
@@ -621,7 +646,17 @@ pub fn build(b: *std.Build) void {
     const unit_tests = b.addTest(.{ .name = "harfbuzz-tests", .root_module = test_mod });
     const run_tests = b.addRunArtifact(unit_tests);
     run_tests.has_side_effects = true;
-    b.step("test", "Run the behavioural tests").dependOn(&run_tests.step);
+    const test_step = b.step("test", "Run the behavioural tests");
+    test_step.dependOn(&run_tests.step);
+    const generator_tests = b.addTest(.{
+        .name = "harfbuzz-runtime-generator-tests",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("runtime/generate.zig"),
+            .target = b.graph.host,
+            .optimize = optimize,
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(generator_tests).step);
 
     b.step("consumer", "Build or run the consumer/ package for the selected target")
         .dependOn(&runConsumer(b, target, optimize, library, deliveredLinkage(target, linkage), runtime_loaded, freetype.path).step);
@@ -662,8 +697,8 @@ pub fn build(b: *std.Build) void {
     });
 
     std.debug.print(
-        "  freetype: {s} (sibling source tree, not a system library); HAVE_FREETYPE, HAVE_FT_GET_TRANSFORM\n",
-        .{freetype.path},
+        "  freetype: {s}; HAVE_FREETYPE, HAVE_FT_GET_TRANSFORM\n",
+        .{freetype.override orelse "freetype package dependency"},
     );
     if (runtime_loaded) {
         std.debug.print(

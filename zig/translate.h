@@ -30,7 +30,7 @@
  * `hb_ot_font_set_funcs` (`src/hb-ot-font.h:39-40`) to give a font its metrics
  * from the font's own tables; it pulls in eleven more headers
  * (`src/hb-ot.h:33-43`), which is why `public_headers` in `build.zig` carries
- * 29 entries. Those 29 are the closure of the shaping surface this package
+ * 30 entries. Those 30 are the closure of the shaping surface this package
  * publishes. A consumer that wants the subset API still writes its own
  * aggregate and points this file at it.
  *
@@ -38,10 +38,8 @@
  *
  * No declaration is copied out of a HarfBuzz header, and this file defines no
  * macro of its own. The compile-line macros - `HAVE_FREETYPE`,
- * `HAVE_PTHREAD`, `HAVE_ATEXIT`, the `HAVE_MMAP` family, and the `HB_NO_*`
- * set that `-Dfreetype=none` selects - are facts about the *target* and about
- * this build's configuration, so they go on the compile line of every C++
- * translation unit and on this translation, and not here.
+ * `HAVE_PTHREAD`, `HAVE_ATEXIT` and the `HAVE_MMAP` family - describe the
+ * target and build configuration. `-Dfreetype=none` is refused.
  *
  * In particular `HAVE_CONFIG_H` is *not* defined. `src/hb-config.hh:34-36`
  * includes a generated `config.h` only under that macro, and this build puts

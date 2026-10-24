@@ -3,7 +3,7 @@
 ## Top-level declarations
 
 - `c`: translated HarfBuzz headers and native declarations.
-- `freetype`: the sibling FreeType module used by `FtFont` signatures.
+- `freetype`: the FreeType dependency module used by `FtFont` signatures.
 - `version`: `std.SemanticVersion` read from the translated HarfBuzz version macros.
 - `runtime_loaded`, `LoadSource`, `LoadError`: runtime-loading configuration and types.
 - `load(source)`: resolve all HarfBuzz entry points from an explicit provider. It is valid only in a runtime-loaded build; a linked build panics.

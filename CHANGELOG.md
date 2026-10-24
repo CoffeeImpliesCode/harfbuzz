@@ -1,5 +1,9 @@
 # Changelog
 
+- Resolve the default FreeType source tree through the `freetype` package dependency declared in `build.zig.zon`; keep `-Dfreetype=<path>` source overrides, including absolute paths.
+- Forward runtime provider environment variables to the nested consumer build for both static and dynamic linkage.
+- Keep FreeType declarations linked in runtime mode, install `hb-script-list.h`, and apply absolute or package-relative FreeType overrides to headers, archive and Zig module.
+- Exclude unsupported WASI from automatic cross-target checks, allowing native dynamic builds and provider installation to configure.
 - Port to Zig 0.17.0.
 - The consumer step forwards Zig cache and library overrides through environment variables.
 - The consumer step runs only native executables; other targets are installed without running.
@@ -15,5 +19,5 @@
 - `Blob.fromFile` reports `FileNotLoaded`, `Face.create` reports `NoFace`, and `OutOfMemory` is limited to observable allocation failures.
 - `Blob.fromBytes` and `Buffer.create` no longer test non-nullable constructor results.
 - HarfBuzz 14.5.1 is packaged as the `harfbuzz` module and `libharfbuzz` artifact, with static, dynamic, runtime-provider and system-library modes.
-- The package uses the sibling FreeType source tree; `-Dfreetype=none` is rejected.
+- The package requires FreeType; `-Dfreetype=none` is rejected.
 - Package paths no longer name the absent `README.mingw.md` or duplicate `README.md`.

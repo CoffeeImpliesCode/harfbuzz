@@ -109,10 +109,32 @@ const Options = struct {
     fn routeOf(self: Options, name: []const u8) Route {
         if (self.exclude.contains(name)) return .optional;
         if (self.optional.contains(name)) return .optional;
+        // `hb-ft.h` includes FreeType declarations, supplied by the linked FreeType archive.
+        if (std.mem.startsWith(u8, name, "FT_")) return .direct;
         if (self.noise.contains(name)) return .direct;
         return .routed;
     }
 };
+
+test "FreeType externs stay direct while HarfBuzz externs use the provider" {
+    var arena_state: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const source =
+        \\pub extern fn FT_Init_FreeType(library: *?*anyopaque) c_int;
+        \\pub extern var FT_fixture: c_int;
+        \\pub extern fn hb_version_string() [*:0]const u8;
+    ;
+    var tree = try Ast.parse(arena, source, .{ .mode = .zig });
+    defer tree.deinit(arena);
+    try std.testing.expectEqual(@as(usize, 0), tree.errors.len);
+    const plan = try planDeclarations(arena, .{}, &tree);
+    try std.testing.expectEqual(@as(usize, 3), plan.decls.len);
+    try std.testing.expectEqual(Class.copied, plan.decls[0].class);
+    try std.testing.expectEqual(Class.copied, plan.decls[1].class);
+    try std.testing.expectEqual(Class.routed_function, plan.decls[2].class);
+    try std.testing.expectEqual(@as(usize, 1), countRouted(plan.decls));
+}
 
 fn take(args: []const [:0]const u8, index: *usize) []const u8 {
     if (index.* + 1 >= args.len) return "";
@@ -200,7 +222,7 @@ fn generate(
     options: Options,
 ) Failure!struct { dispatch: []const u8, native: []const u8 } {
     const source_z = try readSentinel(io, arena, options.translate);
-    var tree = try Ast.parse(arena, source_z, .zig);
+    var tree = try Ast.parse(arena, source_z, .{ .mode = .zig });
     defer tree.deinit(arena);
 
     if (tree.errors.len != 0) {
