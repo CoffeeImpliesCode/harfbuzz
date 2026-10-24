@@ -11,7 +11,7 @@ No upstream source is patched. The 932 vendored files are recorded in `UPSTREAM.
 
 - The build compiles upstream's `src/harfbuzz.cc` as one C++ translation unit with C++14, exceptions disabled, and RTTI disabled.
 - It does not run Meson, CMake, or Autotools. It generates no `config.h`; target-specific macros replace it, while optional upstream backends remain disabled.
-- FreeType is always included through the `freetype` package dependency declared in `build.zig.zon`. It does not use a system FreeType, and `-Dfreetype=none` is refused.
+- FreeType is fetched automatically through the pinned GitHub URL in `build.zig.zon`. It does not use a system FreeType, and `-Dfreetype=none` is refused.
 - The subset library, world library, and `util/` programs are not built.
 - Installation includes the static archive or shared object, 30 public headers, a relocatable `harfbuzz.pc`, and licence records.
 
@@ -24,16 +24,14 @@ No upstream source is patched. The 932 vendored files are recorded in `UPSTREAM.
 
 ## Consumption
 
-Add the package to a consumer's `build.zig.zon`:
+Fetch the package and add its pinned URL and hash to the consumer's `build.zig.zon`:
 
-```zon
-.dependencies = .{
-    .harfbuzz = .{ .path = "../harfbuzz" },
-},
+```sh
+zig fetch --save git+https://github.com/CoffeeImpliesCode/harfbuzz#v14.5.1
 ```
 
 The dependency, module, and artifact names are all `harfbuzz`: use `dep.module("harfbuzz")` for the Zig facade and `dep.artifact("harfbuzz")` for the native library.
-FreeType resolves through HarfBuzz's manifest dependency; consumers need no sibling FreeType checkout when that dependency uses a URL.
+Nix builds preload the pinned FreeType source into Zig's global cache.
 
 Build options:
 
