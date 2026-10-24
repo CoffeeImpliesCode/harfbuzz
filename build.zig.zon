@@ -5,7 +5,10 @@
     .version = "14.5.1",
     .minimum_zig_version = "0.17.0",
     .dependencies = .{
-        .freetype = .{ .path = "../freetype" },
+        .freetype = .{
+            .url = "git+https://github.com/CoffeeImpliesCode/freetype?ref=v2.14.3#47ca6f6bd095a48da89e1cd815808007c322d553",
+            .hash = "freetype-2.14.3-8tKp3y0bMQHwVTbgOv-zJxJGTB71bBusVFzi2Lr1eFbD",
+        },
     },
     .paths = .{
         "build.zig",

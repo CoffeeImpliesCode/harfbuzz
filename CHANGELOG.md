@@ -1,5 +1,6 @@
 # Changelog
 
+- Nix builds preload pinned FreeType sources into Zig's global cache. Development shells use the manifest URL without a sibling checkout.
 - Resolve the default FreeType source tree through the `freetype` package dependency declared in `build.zig.zon`; keep `-Dfreetype=<path>` source overrides, including absolute paths.
 - Forward runtime provider environment variables to the nested consumer build for both static and dynamic linkage.
 - Keep FreeType declarations linked in runtime mode, install `hb-script-list.h`, and apply absolute or package-relative FreeType overrides to headers, archive and Zig module.

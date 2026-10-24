@@ -9,11 +9,7 @@ let
   harfbuzz = linkage: pkgs.callPackage ./package.nix { inherit linkage; };
 
   # Resolve this checkout from the Nix file without adding it to the store.
-  # Tasks use this path so relative dependencies resolve from the source tree.
   sdk_root = builtins.toString ./.;
-
-  # Sibling FreeType source tree selected by build.zig.
-  freetype_root = builtins.toString ../freetype;
 
   # Keep Zig caches outside the source tree and respect caller-provided paths.
   zig_caches = ''
@@ -49,23 +45,10 @@ let
     fi
   '';
 
-  # FreeType is required. Report a missing source tree before compiling.
-  require_freetype = ''
-    if [ ! -f "${freetype_root}/build.zig.zon" ]; then
-      echo "harfbuzz devenv: the sibling FreeType source tree is not at" >&2
-      echo "${freetype_root}." >&2
-      echo "src/harfbuzz.cc includes hb-ft.cc unconditionally, so this package" >&2
-      echo "compiles against that tree's include/ directory and links its archive." >&2
-      echo "Check out the sibling beside this one, or pass -Dfreetype=<path>." >&2
-      exit 1
-    fi
-  '';
-
   # Run each build task from this checkout root.
   in_sdk = ''
     ${zig_caches}
     ${require_external_output}
-    ${require_freetype}
     cd "${sdk_root}" || exit 1
   '';
 
@@ -115,7 +98,7 @@ in
     "sdk:build" = {
       description = ''
         Compile the single C++ translation unit `src/harfbuzz.cc` against the
-        sibling FreeType (default step) and install the delivery tree -- library,
+        FreeType dependency and install the delivery tree -- library,
         the 17 public headers, harfbuzz.pc and share/licenses/harfbuzz/ -- under
         the external cache rather than in this checkout.
       '';

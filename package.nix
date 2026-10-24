@@ -4,14 +4,19 @@
 
 { lib
 , stdenv
+, fetchFromGitHub
 , zig
 , patchelf
-, # Zig's own `std.builtin.LinkMode` spelling, passed straight through as
   # `-Dlinkage` selects the output; an empty value uses build.zig's default.
 , linkage ? "static"
 , optimize ? "ReleaseSafe"
-, # The FreeType source tree `src/hb-ft.cc` compiles against. See the header.
-, freetypeSource ? builtins.path { path = ../freetype; name = "freetype-sibling"; }
+  # The FreeType source tree `src/hb-ft.cc` compiles against.
+, freetypeSource ? fetchFromGitHub {
+    owner = "CoffeeImpliesCode";
+    repo = "freetype";
+    rev = "47ca6f6bd095a48da89e1cd815808007c322d553";
+    hash = "sha256-Bc85DHUCypmnwgVay717KA5Nr1xSITzCV6gRUzBQIJQ=";
+  }
 }:
 
 let
@@ -64,21 +69,20 @@ stdenv.mkDerivation {
   doCheck = false;
   dontUseZigCheck = true;
 
-  freetypeTree = freetypeSource;
-
   installPhase = ''
     runHook preInstall
 
     # Keep Zig caches outside the unpacked source tree.
     export ZIG_LOCAL_CACHE_DIR="$TMPDIR/zig-local-cache"
     export ZIG_GLOBAL_CACHE_DIR="$TMPDIR/zig-global-cache"
+    mkdir -p "$ZIG_GLOBAL_CACHE_DIR/p"
+    cp -r --no-preserve=mode ${freetypeSource} "$ZIG_GLOBAL_CACHE_DIR/p/freetype-2.14.3-8tKp3y0bMQHwVTbgOv-zJxJGTB71bBusVFzi2Lr1eFbD"
 
     zig build install \
       --prefix "$out" \
       -j"''${NIX_BUILD_CORES:-1}" \
       -Doptimize=${optimize} \
       -Dcpu=baseline \
-      -Dfreetype=${freetypeTree} \
       ${lib.optionalString (requestedLinkage != "") "-Dlinkage=${requestedLinkage}"}
 
     # Remove TMPDIR rpaths rejected by Nix but keep store paths and `$ORIGIN`.
@@ -118,10 +122,8 @@ stdenv.mkDerivation {
       CMake and no build-time download. Ships the library, the public headers, a
       pkg-config file and every licence the tree contains.
 
-      The compiled library is C++ and requires the C++ runtime. It is built
-      against the sibling FreeType *source tree* rather than an installed
-      FreeType; see the header of this file for why that is an argument and not
-      a nixpkgs dependency.
+      The compiled library is C++ and requires the C++ runtime. It builds
+      against the pinned FreeType source tree preloaded into Zig's global cache.
     '';
     # The output includes MIT and OFL-1.1 files; NOTICE.md maps their paths.
     license = with lib.licenses; { mit = true; ofl = true; };
