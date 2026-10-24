@@ -6,8 +6,8 @@
     .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .freetype = .{
-            .url = "git+https://github.com/CoffeeImpliesCode/freetype?ref=v2.14.3#47ca6f6bd095a48da89e1cd815808007c322d553",
-            .hash = "freetype-2.14.3-8tKp3y0bMQHwVTbgOv-zJxJGTB71bBusVFzi2Lr1eFbD",
+            .url = "git+https://github.com/CoffeeImpliesCode/freetype?ref=v2.14.3#03c1969a15a2483390477ecf582f5324e5f13ffe",
+            .hash = "freetype-2.14.3-8tKp33UbMQGMAAArGHgkm0e8SvRb2mAYZyWQAIY1bm2d",
         },
     },
     .paths = .{

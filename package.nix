@@ -14,8 +14,8 @@
 , freetypeSource ? fetchFromGitHub {
     owner = "CoffeeImpliesCode";
     repo = "freetype";
-    rev = "47ca6f6bd095a48da89e1cd815808007c322d553";
-    hash = "sha256-Bc85DHUCypmnwgVay717KA5Nr1xSITzCV6gRUzBQIJQ=";
+    rev = "03c1969a15a2483390477ecf582f5324e5f13ffe";
+    hash = "sha256-nkMADW4jLI3iiSzKUh0Md2c0tQVe1t9IgOgIJuDyUN4=";
   }
 }:
 
@@ -76,7 +76,7 @@ stdenv.mkDerivation {
     export ZIG_LOCAL_CACHE_DIR="$TMPDIR/zig-local-cache"
     export ZIG_GLOBAL_CACHE_DIR="$TMPDIR/zig-global-cache"
     mkdir -p "$ZIG_GLOBAL_CACHE_DIR/p"
-    cp -r --no-preserve=mode ${freetypeSource} "$ZIG_GLOBAL_CACHE_DIR/p/freetype-2.14.3-8tKp3y0bMQHwVTbgOv-zJxJGTB71bBusVFzi2Lr1eFbD"
+    cp -r --no-preserve=mode ${freetypeSource} "$ZIG_GLOBAL_CACHE_DIR/p/freetype-2.14.3-8tKp33UbMQGMAAArGHgkm0e8SvRb2mAYZyWQAIY1bm2d"
 
     zig build install \
       --prefix "$out" \
